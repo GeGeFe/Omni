@@ -8,7 +8,7 @@ struct MotorControl {
   AF_DCMotor* motor;
 };
 
-MotorControl motores[4];  // Array para 4 motores
+MotorControl motores[4]; // Array para 4 motores
 
 int luztrasera = 13;
 int luzdelantera = A1;
@@ -35,12 +35,12 @@ int split(String str, char delimiter, String* arr, int maxElements) {
   return index;  // Devuelve el número de elementos
 };
 
-void setup() {
+void setup() { 
   for (int i = 0; i < 4; i++) {
     motores[i].motor = new AF_DCMotor(i + 1);
     motores[i].motor->setSpeed(motores[i].velocidad);
   };
-
+  
   pinMode(mibocina, OUTPUT);      // Bocina
   pinMode(luzdelantera, OUTPUT);  // Luz delantera
   pinMode(luztrasera, OUTPUT);    // Luz trasera
@@ -74,9 +74,10 @@ void loop() {
     //  if(Serial.available()>0) { // Usar si control por puerto serie.
     String entradabluetooth = BT1.readStringUntil('\n');  // Lee hasta el salto de línea
     Serial.println(entradabluetooth);
-    comando = entradabluetooth.charAt(0);
+//    comando = entradabluetooth.charAt(0);
     String params[10]; // Array para almacenar los parámetros
     int count = split(entradabluetooth, ' ', params, 10); // Divide la cadena por espacios
+    comando = params[0].charAt(0); // Ver de agregar una pila de comandos para que no se pierdan o se ejecuten superpuestos
     switch (comando) {
       // Código para bocina.
       case 'V':
@@ -85,10 +86,35 @@ void loop() {
         break;
       case 'v':
         tonoActivo = false;
+        noTone(mibocina);
         break;
       // Código para motores.
       case 'M':
         MoverMotor(params[1].toInt(), params[2].toInt(), params[3].toInt(), params[4].toInt());
+        break;
+      case '1':
+        MoverMotor(2, params[1].toInt(), params[2].toInt(), params[3].toInt());
+        if (params[2].toInt() == 0) {
+          MoverMotor(3, params[1].toInt(), 1, params[3].toInt());
+        } else {
+          MoverMotor(3, params[1].toInt(), 0, params[3].toInt());
+        }
+        break;
+      case '2':
+        MoverMotor(3, params[1].toInt(), params[2].toInt(), params[3].toInt());
+        if (params[2].toInt() == 0) {
+          MoverMotor(1, params[1].toInt(), 1, params[3].toInt());
+        } else {
+          MoverMotor(1, params[1].toInt(), 0, params[3].toInt());
+        }
+        break;
+      case '3':
+        MoverMotor(1, params[1].toInt(), params[2].toInt(), params[3].toInt());
+        if (params[2].toInt() == 0) {
+          MoverMotor(2, params[1].toInt(), 1, params[3].toInt());
+        } else {
+          MoverMotor(2, params[1].toInt(), 0, params[3].toInt());
+        }
         break;
       case 'S':  // Solo detiene ruedas
         DetenerMotor(0);
@@ -124,25 +150,22 @@ void loop() {
     };
   };
 
-  if (tonoActivo) {
-    if (millis() >= tiempoTonoFin) {
-      noTone(mibocina);    // Detener el tono
-      tonoActivo = false;  // Marcar que el tono ya no está activo
-    };
-  } else {
-    noTone(mibocina);
+  if (tonoActivo && (millis() >= tiempoTonoFin)) {
+    noTone(mibocina);    // Detener el tono
+    tonoActivo = false;  // Marcar que el tono ya no está activo
   };
 
   for (int i = 0; i < 4; i++) {
-    if (motores[i].activo && millis() >= motores[i].tiempoFin) {
-      // Detener el motor
+    if (motores[i].activo && (millis() >= motores[i].tiempoFin)) { // Detener el motor
       DetenerMotor(i);
     };
   };
+
 };
 
 void MoverMotor(int id, int duracion, int direccion, int velocidad) {
   motores[id].motor->setSpeed(velocidad);
+  motores[id].velocidad=velocidad;
   if (direccion == 0) {
     motores[id].motor->run(FORWARD);
   } else {
