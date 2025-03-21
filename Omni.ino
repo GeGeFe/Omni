@@ -4,7 +4,6 @@
 struct MotorControl {
   bool activo = false;        // Indica si el motor está activo
   unsigned long tiempoFin = 0; // Almacena el tiempo en que debe detenerse
-  int velocidad = 255;
   AF_DCMotor* motor;
 };
 
@@ -16,6 +15,8 @@ int luzdelantera = A1;
 int mibocina = A0;
 boolean tonoActivo = false;       // Indica si el tono está activo
 unsigned long tiempoTonoFin = 0;  // Almacena el tiempo en que debe detenerse el tono
+
+boolean testeado = false;         // Indica si ya se realizó el testeo inicial
 
 SoftwareSerial BT1(0, 1);  // RX | TX
 
@@ -35,21 +36,29 @@ int split(String str, char delimiter, String* arr, int maxElements) {
   return index;  // Devuelve el número de elementos
 };
 
-void setup() { 
-  for (int i = 0; i < 4; i++) {
-    motores[i].motor = new AF_DCMotor(i + 1);
-    motores[i].motor->setSpeed(motores[i].velocidad);
+void MoverMotor(int id, unsigned long duracion, int direccion, int velocidad) {
+  motores[id].motor->setSpeed(velocidad);
+  if (direccion == 0) {
+    motores[id].motor->run(FORWARD);
+  } else {
+    motores[id].motor->run(BACKWARD);
   };
-  
-  pinMode(mibocina, OUTPUT);      // Bocina
-  pinMode(luzdelantera, OUTPUT);  // Luz delantera
-  pinMode(luztrasera, OUTPUT);    // Luz trasera
+  motores[id].activo = true;
+  motores[id].tiempoFin = millis() + duracion;
+}
 
-  //** Testeo **
+void DetenerMotor(int id) {
+  motores[id].motor->run(RELEASE);
+  motores[id].activo = false;
+  motores[id].tiempoFin = 0;
+}
+
+boolean Testeo(){
   for (int i = 0; i < 4; i++) {
     motores[i].motor->run(FORWARD);
     delay(1000);
     motores[i].motor->run(RELEASE);
+    delay(500);
   };
 
   tone(mibocina, 1000);
@@ -63,32 +72,37 @@ void setup() {
   digitalWrite(luzdelantera, HIGH);
   delay(500);
   digitalWrite(luzdelantera, LOW);
-  //** Fin testeo **
+  return true;
+}
+
+void setup() {
+
+  for (int i = 0; i < 4; i++) {
+    motores[i].motor = new AF_DCMotor(i + 1);
+    motores[i].motor->setSpeed(255);
+  };
+
+  pinMode(mibocina, OUTPUT);      // Bocina
+  pinMode(luzdelantera, OUTPUT);  // Luz delantera
+  pinMode(luztrasera, OUTPUT);    // Luz trasera
 
   BT1.begin(9600);
   Serial.begin(9600);
 };
 
 void loop() {
+  if (!testeado) { testeado = Testeo(); };
+  
   if (BT1.available()) {  // Usar si control por bluetooth.
     //  if(Serial.available()>0) { // Usar si control por puerto serie.
     String entradabluetooth = BT1.readStringUntil('\n');  // Lee hasta el salto de línea
     Serial.println(entradabluetooth);
-//    comando = entradabluetooth.charAt(0);
+    //    comando = entradabluetooth.charAt(0);
     String params[10]; // Array para almacenar los parámetros
     int count = split(entradabluetooth, ' ', params, 10); // Divide la cadena por espacios
     comando = params[0].charAt(0); // Ver de agregar una pila de comandos para que no se pierdan o se ejecuten superpuestos
     switch (comando) {
-      // Código para bocina.
-      case 'V':
-        tonoActivo = true;
-        tone(mibocina, 1000);
-        break;
-      case 'v':
-        tonoActivo = false;
-        noTone(mibocina);
-        break;
-      // Código para motores.
+// ** Código para motores. **
       case 'M':
         MoverMotor(params[1].toInt(), params[2].toInt(), params[3].toInt(), params[4].toInt());
         break;
@@ -127,7 +141,7 @@ void loop() {
         DetenerMotor(2);
         DetenerMotor(3);
         break;
-      // Código para luces.
+// ** Código para luces. **
       case 'W':
         digitalWrite(luzdelantera, HIGH);
         break;
@@ -140,14 +154,20 @@ void loop() {
       case 'u':
         digitalWrite(luztrasera, LOW);
         break;
+// ** Codigo para buzzer. **
       case 'T':
-        // Generar el tono
         tone(mibocina, params[1].toInt());
         tonoActivo = true;
         tiempoTonoFin = millis() + params[2].toInt();  // Calcular el tiempo en que debe detenerse
         break;
-        comando = "";
+      case 'H': // Respuesta a conección por Bluetooth
+        tone(mibocina, 1000, 250);
+        delay(250);
+        tone(mibocina, 500, 250);
+        delay(250);       
+        break;
     };
+    comando = "";
   };
 
   if (tonoActivo && (millis() >= tiempoTonoFin)) {
@@ -162,21 +182,3 @@ void loop() {
   };
 
 };
-
-void MoverMotor(int id, int duracion, int direccion, int velocidad) {
-  motores[id].motor->setSpeed(velocidad);
-  motores[id].velocidad=velocidad;
-  if (direccion == 0) {
-    motores[id].motor->run(FORWARD);
-  } else {
-    motores[id].motor->run(BACKWARD);
-  };
-  motores[id].activo = true;
-  motores[id].tiempoFin = millis() + duracion;
-}
-
-void DetenerMotor(int id) {
-  motores[id].motor->run(RELEASE);
-  motores[id].activo = false;
-  motores[id].tiempoFin = 0;
-}
