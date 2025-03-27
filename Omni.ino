@@ -7,16 +7,18 @@ struct MotorControl {
   AF_DCMotor* motor;
 };
 
+int totalmotores = 4;
 MotorControl motores[4]; // Array para 4 motores
 
 int luztrasera = 13;
 int luzdelantera = A1;
+int luztesteo = luztrasera;
 
 int mibocina = A0;
 boolean tonoActivo = false;       // Indica si el tono está activo
 unsigned long tiempoTonoFin = 0;  // Almacena el tiempo en que debe detenerse el tono
 
-boolean testeado = false;         // Indica si ya se realizó el testeo inicial
+boolean testeado = true;         // Indica si ya se realizó el testeo inicial
 
 SoftwareSerial BT1(0, 1);  // RX | TX
 
@@ -53,31 +55,45 @@ void DetenerMotor(int id) {
   motores[id].tiempoFin = 0;
 }
 
-boolean Testeo(){
-  for (int i = 0; i < 4; i++) {
-    motores[i].motor->run(FORWARD);
+void pulso(){
+  digitalWrite(luztesteo, HIGH);
+  delay(20);
+  digitalWrite(luztesteo, LOW);
+}
+
+boolean Testeo() {
+  for (int i = 0; i < totalmotores; i++) {
+    pulso();
+    MoverMotor(i, 1000, 0, 255);
     delay(1000);
-    motores[i].motor->run(RELEASE);
-    delay(500);
+    DetenerMotor(i);
+
+    pulso();
+    MoverMotor(i, 1000, 1, 255);
+    delay(1000);
+    DetenerMotor(i);
   };
 
+  pulso();
   tone(mibocina, 1000);
-  delay(500);
+  delay(1000);
   noTone(mibocina);
 
+  pulso();
   digitalWrite(luztrasera, HIGH);
-  delay(500);
+  delay(1000);
   digitalWrite(luztrasera, LOW);
 
+  pulso();
   digitalWrite(luzdelantera, HIGH);
-  delay(500);
+  delay(1000);
   digitalWrite(luzdelantera, LOW);
   return true;
 }
 
 void setup() {
 
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < totalmotores; i++) {
     motores[i].motor = new AF_DCMotor(i + 1);
     motores[i].motor->setSpeed(255);
   };
@@ -91,8 +107,10 @@ void setup() {
 };
 
 void loop() {
-  if (!testeado) { testeado = Testeo(); };
-  
+  if (!testeado) {
+    testeado = Testeo();
+  };
+
   if (BT1.available()) {  // Usar si control por bluetooth.
     //  if(Serial.available()>0) { // Usar si control por puerto serie.
     String entradabluetooth = BT1.readStringUntil('\n');  // Lee hasta el salto de línea
@@ -102,7 +120,10 @@ void loop() {
     int count = split(entradabluetooth, ' ', params, 10); // Divide la cadena por espacios
     comando = params[0].charAt(0); // Ver de agregar una pila de comandos para que no se pierdan o se ejecuten superpuestos
     switch (comando) {
-// ** Código para motores. **
+      case 'T':
+        testeado = false;
+        break;
+      // ** Código para motores. **
       case 'M':
         MoverMotor(params[1].toInt(), params[2].toInt(), params[3].toInt(), params[4].toInt());
         break;
@@ -136,12 +157,11 @@ void loop() {
         DetenerMotor(2);
         break;
       case 'D':  // Detiene todos los motores
-        DetenerMotor(0);
-        DetenerMotor(1);
-        DetenerMotor(2);
-        DetenerMotor(3);
+        for (int i=0; i < totalmotores; i++){
+          DetenerMotor(i);
+        }
         break;
-// ** Código para luces. **
+      // ** Código para luces. **
       case 'W':
         digitalWrite(luzdelantera, HIGH);
         break;
@@ -154,8 +174,8 @@ void loop() {
       case 'u':
         digitalWrite(luztrasera, LOW);
         break;
-// ** Codigo para buzzer. **
-      case 'T':
+      // ** Codigo para buzzer. **
+      case 'F':
         tone(mibocina, params[1].toInt());
         tonoActivo = true;
         tiempoTonoFin = millis() + params[2].toInt();  // Calcular el tiempo en que debe detenerse
@@ -164,7 +184,7 @@ void loop() {
         tone(mibocina, 1000, 250);
         delay(250);
         tone(mibocina, 500, 250);
-        delay(250);       
+        delay(250);
         break;
     };
     comando = "";
@@ -175,7 +195,7 @@ void loop() {
     tonoActivo = false;  // Marcar que el tono ya no está activo
   };
 
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < totalmotores; i++) {
     if (motores[i].activo && (millis() >= motores[i].tiempoFin)) { // Detener el motor
       DetenerMotor(i);
     };
