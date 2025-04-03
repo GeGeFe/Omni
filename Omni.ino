@@ -2,23 +2,23 @@
 #include <SoftwareSerial.h>
 
 struct MotorControl {
-  bool activo = false;        // Indica si el motor está activo
-  unsigned long tiempoFin = 0; // Almacena el tiempo en que debe detenerse
+  bool activo = false;          // Indica si el motor está activo
+  unsigned long tiempoFin = 0;  // Almacena el tiempo en que debe detenerse
   AF_DCMotor* motor;
 };
 
-int totalmotores = 4;
-MotorControl motores[4]; // Array para 4 motores
+const int totalmotores = 4;
+MotorControl motores[totalmotores];  // Array para 4 motores
 
-int luztrasera = 13;
-int luzdelantera = A1;
-int luztesteo = luztrasera;
+const int luztrasera = 13;
+const int luzdelantera = A1;
+const int luztesteo = luztrasera;
+const int mibocina = A0;
 
-int mibocina = A0;
 boolean tonoActivo = false;       // Indica si el tono está activo
 unsigned long tiempoTonoFin = 0;  // Almacena el tiempo en que debe detenerse el tono
 
-boolean testeado = true;         // Indica si ya se realizó el testeo inicial
+boolean testeado = false;  // Indica si ya se realizó el testeo inicial
 
 SoftwareSerial BT1(0, 1);  // RX | TX
 
@@ -55,7 +55,7 @@ void DetenerMotor(int id) {
   motores[id].tiempoFin = 0;
 }
 
-void pulso(){
+void pulso() {
   digitalWrite(luztesteo, HIGH);
   delay(20);
   digitalWrite(luztesteo, LOW);
@@ -95,7 +95,6 @@ void setup() {
 
   for (int i = 0; i < totalmotores; i++) {
     motores[i].motor = new AF_DCMotor(i + 1);
-    motores[i].motor->setSpeed(255);
   };
 
   pinMode(mibocina, OUTPUT);      // Bocina
@@ -116,9 +115,9 @@ void loop() {
     String entradabluetooth = BT1.readStringUntil('\n');  // Lee hasta el salto de línea
     Serial.println(entradabluetooth);
     //    comando = entradabluetooth.charAt(0);
-    String params[10]; // Array para almacenar los parámetros
-    int count = split(entradabluetooth, ' ', params, 10); // Divide la cadena por espacios
-    comando = params[0].charAt(0); // Ver de agregar una pila de comandos para que no se pierdan o se ejecuten superpuestos
+    String params[10];                                     // Array para almacenar los parámetros
+    int count = split(entradabluetooth, ' ', params, 10);  // Divide la cadena por espacios
+    comando = params[0].charAt(0);                         // Ver de agregar una pila de comandos para que no se pierdan o se ejecuten superpuestos
     switch (comando) {
       case 'T':
         testeado = false;
@@ -128,27 +127,27 @@ void loop() {
         MoverMotor(params[1].toInt(), params[2].toInt(), params[3].toInt(), params[4].toInt());
         break;
       case '1':
-        MoverMotor(2, params[1].toInt(), params[2].toInt(), params[3].toInt());
-        if (params[2].toInt() == 0) {
-          MoverMotor(3, params[1].toInt(), 1, params[3].toInt());
-        } else {
-          MoverMotor(3, params[1].toInt(), 0, params[3].toInt());
-        }
-        break;
-      case '2':
-        MoverMotor(3, params[1].toInt(), params[2].toInt(), params[3].toInt());
-        if (params[2].toInt() == 0) {
-          MoverMotor(1, params[1].toInt(), 1, params[3].toInt());
-        } else {
-          MoverMotor(1, params[1].toInt(), 0, params[3].toInt());
-        }
-        break;
-      case '3':
-        MoverMotor(1, params[1].toInt(), params[2].toInt(), params[3].toInt());
+        MoverMotor(0, params[1].toInt(), params[2].toInt(), params[3].toInt());
         if (params[2].toInt() == 0) {
           MoverMotor(2, params[1].toInt(), 1, params[3].toInt());
         } else {
           MoverMotor(2, params[1].toInt(), 0, params[3].toInt());
+        }
+        break;
+      case '2':
+        MoverMotor(1, params[1].toInt(), params[2].toInt(), params[3].toInt());
+        if (params[2].toInt() == 0) {
+          MoverMotor(0, params[1].toInt(), 1, params[3].toInt());
+        } else {
+          MoverMotor(0, params[1].toInt(), 0, params[3].toInt());
+        }
+        break;
+      case '3':
+        MoverMotor(0, params[1].toInt(), params[2].toInt(), params[3].toInt());
+        if (params[2].toInt() == 0) {
+          MoverMotor(1, params[1].toInt(), 1, params[3].toInt());
+        } else {
+          MoverMotor(1, params[1].toInt(), 0, params[3].toInt());
         }
         break;
       case 'S':  // Solo detiene ruedas
@@ -157,7 +156,7 @@ void loop() {
         DetenerMotor(2);
         break;
       case 'D':  // Detiene todos los motores
-        for (int i=0; i < totalmotores; i++){
+        for (int i = 0; i < totalmotores; i++) {
           DetenerMotor(i);
         }
         break;
@@ -180,11 +179,12 @@ void loop() {
         tonoActivo = true;
         tiempoTonoFin = millis() + params[2].toInt();  // Calcular el tiempo en que debe detenerse
         break;
-      case 'H': // Respuesta a conección por Bluetooth
+      case 'H':  // Respuesta a conección por Bluetooth
         tone(mibocina, 1000, 250);
         delay(250);
         tone(mibocina, 500, 250);
         delay(250);
+        BT1.println("H");
         break;
     };
     comando = "";
@@ -193,12 +193,14 @@ void loop() {
   if (tonoActivo && (millis() >= tiempoTonoFin)) {
     noTone(mibocina);    // Detener el tono
     tonoActivo = false;  // Marcar que el tono ya no está activo
+      BT1.println("f");
   };
 
   for (int i = 0; i < totalmotores; i++) {
-    if (motores[i].activo && (millis() >= motores[i].tiempoFin)) { // Detener el motor
+    if (motores[i].activo && (millis() >= motores[i].tiempoFin)) {  // Detener el motor
       DetenerMotor(i);
+      BT1.print("m");
+      BT1.println(i);
     };
   };
-
 };
